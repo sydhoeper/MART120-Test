@@ -1,0 +1,27 @@
+
+#specificColor {
+  color: rgb(255, 50, 159);
+}
+
+h2{
+    font-family:Arial, Helvetica, sans-serif
+}
+
+.styledLink{
+    color: rgb(0, 115, 255);
+    text-decoration: underline;
+}
+
+.styledLink:hover{
+    color: rgb(128, 0, 255);
+    text-decoration: underline;
+}
+
+
+.secondPageBackground {
+  background-image: url("https://as2.ftcdn.net/jpg/14/92/80/01/1000_F_1492800189_8ETwOmjUfGtBbx8fvyJOyVY2Q0fm9KEC.webp");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
