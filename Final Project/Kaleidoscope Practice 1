@@ -1,0 +1,556 @@
+
+var viewerX;
+var viewerY;
+
+var trayX;
+var trayY;
+
+var holderX;
+var holderY;
+
+// Arrays for original shapes
+var circles = [];
+var squares = [];
+var ellipses = [];
+var hexagons = [];
+var octagons = [];
+var stars = [];
+
+// Array for duplicates
+var duplicates = [];
+var draggedShape = null;
+
+// Kaleidoscope mode flag
+var showKaleidoscope = false;
+
+//Slider
+var sliceSlider;
+var slices = 12;
+
+// ---- Zoom slider globals ----
+var zoomSlider;     // slider element
+var zoomPercent = 100; // 50..200
+var zoomFactor = 1;    // derived: zoomPercent / 100
+
+
+
+function setup() {
+  createCanvas(800, 825);
+
+
+ // ---- Create "Slices" slider----
+  sliceSlider = createSlider(6, 20, 12, 2);
+  sliceSlider.position(20, 20);
+  sliceSlider.style('width', '160px');
+
+
+  // ---- Create "Zoom" slider (50%..200%, default 100%) ----
+  zoomSlider = createSlider(50, 200, 100, 1);  // percent
+  zoomSlider.position(20, 60);                 // below "Slices"
+  zoomSlider.style('width', '160px');
+
+
+  // Variables
+  viewerX = width / 2;
+  viewerY = height / 4;
+
+  trayX = width * 0.75;
+  trayY = height * 0.75;
+
+  holderX = width * 0.25;
+  holderY = height * 0.75;
+
+  // Add original shapes
+  circles.push([holderX - 100, holderY - 100, 60]); // Blue circle
+  squares.push([holderX - 100, holderY, 60]);       // Red square
+  ellipses.push([holderX - 100, holderY + 100, 80]); // Yellow ellipse
+  hexagons.push([holderX + 100, holderY - 100, 60]); // Green hexagon
+  octagons.push([holderX + 100, holderY, 60]);       // Purple octagon
+  stars.push([holderX + 100, holderY + 100, 60]);    // Orange star
+}
+
+function draw() {
+  background(255);
+
+  // ---- Update slices from slider and draw UI label/value ----
+  slices = sliceSlider.value();
+  drawSlicesUI();
+
+  // ---- Update zoom from slider (percent -> factor) + UI ----
+  zoomPercent = zoomSlider.value();
+  zoomFactor = zoomPercent / 100.0;
+  drawZoomUI();
+
+  // Layout
+  showViewer();
+  showHolderTray();
+  showViewerPreview();
+
+  // Draw tray shapes
+  drawCircles(circles, color(3, 162, 255));
+  drawSquares(squares, color(255, 62, 28));
+  drawEllipses(ellipses, color(252, 186, 3));
+  drawHexagons(hexagons, color(145, 247, 94));
+  drawOctagons(octagons, color(174, 69, 255));
+  drawStars(stars, color(252, 140, 3));
+
+
+  // Draw tray duplicates
+  for (var i = 0; i < duplicates.length; i++) {
+    var d = duplicates[i];
+    fill(d[3]);
+    noStroke();
+    if (d[0] === "circle") {
+      circle(d[1], d[2], d[4]);
+    } else if (d[0] === "square") {
+      square(d[1], d[2], d[4]);
+    } else if (d[0] === "ellipse") {
+      ellipse(d[1], d[2], d[4], d[4] * 0.6);
+    } else if (d[0] === "hexagon") {
+      beginShape();
+      for (var a = 0; a < TWO_PI; a += TWO_PI / 6) {
+        vertex(d[1] + cos(a) * d[4] / 2, d[2] + sin(a) * d[4] / 2);
+      }
+      endShape(CLOSE);
+    } else if (d[0] === "octagon") {
+      beginShape();
+      for (var a = 0; a < TWO_PI; a += TWO_PI / 8) {
+        vertex(d[1] + cos(a) * d[4] / 2, d[2] + sin(a) * d[4] / 2);
+      }
+      endShape(CLOSE);
+    } else if (d[0] === "star") {
+      var inner = d[4] / 4;
+      var outer = d[4] / 2;
+      beginShape();
+      for (var a = 0; a < TWO_PI; a += PI / 5) {
+        var r = (a % (PI / 2.5) === 0) ? outer : inner;
+        vertex(d[1] + cos(a) * r, d[2] + sin(a) * r);
+      }
+      endShape(CLOSE);
+    }
+  }
+
+
+  // Reset button
+  drawResetButton();
+
+  // View Kaleidoscope button
+  drawViewButton();
+
+  // Kaleidoscope effect
+  kaleidoscopeEffect();
+
+
+  // ----Labels----
+  fill(0);
+  textSize(18);
+  textAlign(CENTER);
+
+  // Label for Holder Tray
+  text("Holder Tray", holderX, holderY - 165);
+
+  // Label for Preview Tray
+  text("Preview Tray", trayX, trayY - 165);
+}
+
+//--------------FUNCTIONS----------------
+
+//------Setup------
+function showViewer() {
+  fill(60);
+  noStroke();
+  circle(viewerX, viewerY, 400);
+}
+
+
+function showHolderTray() {
+  // Draw the Holder Tray
+  fill(200);
+  stroke(50);
+  strokeWeight(2);
+  circle(trayX, trayY, 300);
+}
+
+function showViewerPreview() {
+  fill(235);
+  stroke(50);
+  strokeWeight(2);
+  rectMode(CENTER);
+  rect(holderX, holderY, 300, 300);
+}
+
+// -----Shapes in Tray------
+function drawCircles(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    let isHover = dist(mouseX, mouseY, arr[i][0], arr[i][1]) < arr[i][2] / 2;
+    if (isHover) {
+      fill(135, 206, 255); // lighter blue
+    } else {
+      fill(col);
+    }
+    circle(arr[i][0], arr[i][1], arr[i][2]);
+  }
+}
+
+function drawSquares(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    let isHover =
+      mouseX > arr[i][0] &&
+      mouseX < arr[i][0] + arr[i][2] &&
+      mouseY > arr[i][1] &&
+      mouseY < arr[i][1] + arr[i][2];
+    if (isHover) {
+      fill(255, 150, 120); // lighter red
+    } else {
+      fill(col);
+    }
+    square(arr[i][0], arr[i][1], arr[i][2]);
+  }
+}
+
+function drawEllipses(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    let isHover = dist(mouseX, mouseY, arr[i][0], arr[i][1]) < arr[i][2] / 2;
+    if (isHover) {
+      fill(255, 220, 120); // lighter yellow
+    } else {
+      fill(col);
+    }
+    ellipse(arr[i][0], arr[i][1], arr[i][2], arr[i][2] * 0.6);
+  }
+}
+
+
+function drawHexagons(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    var x = arr[i][0];
+    var y = arr[i][1];
+    var size = arr[i][2];
+
+    // Hover detection: distance from center
+    var isHover = dist(mouseX, mouseY, x, y) < size / 2;
+    if (isHover) {
+      fill(190, 255, 170); // lighter green
+    } else {
+      fill(col);
+    }
+
+    beginShape();
+    for (var a = 0; a < TWO_PI; a += TWO_PI / 6) {
+      var sx = x + cos(a) * size / 2;
+      var sy = y + sin(a) * size / 2;
+      vertex(sx, sy);
+    }
+    endShape(CLOSE);
+  }
+}
+
+function drawOctagons(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    var x = arr[i][0];
+    var y = arr[i][1];
+    var size = arr[i][2];
+
+    var isHover = dist(mouseX, mouseY, x, y) < size / 2;
+    if (isHover) {
+      fill(220, 150, 255); // lighter purple
+    } else {
+      fill(col);
+    }
+
+    beginShape();
+    for (var a = 0; a < TWO_PI; a += TWO_PI / 8) {
+      var sx = x + cos(a) * size / 2;
+      var sy = y + sin(a) * size / 2;
+      vertex(sx, sy);
+    }
+    endShape(CLOSE);
+  }
+}
+
+function drawStars(arr, col) {
+  noStroke();
+  for (var i = 0; i < arr.length; i++) {
+    var x = arr[i][0];
+    var y = arr[i][1];
+    var size = arr[i][2];
+
+    var isHover = dist(mouseX, mouseY, x, y) < size / 2;
+    if (isHover) {
+      fill(255, 200, 120); // lighter orange
+    } else {
+      fill(col);
+    }
+
+    var inner = size / 4;
+    var outer = size / 2;
+    beginShape();
+    for (var a = 0; a < TWO_PI; a += PI / 5) {
+      var r = (a % (PI / 2.5) === 0) ? outer : inner;
+      var sx = x + cos(a) * r;
+      var sy = y + sin(a) * r;
+      vertex(sx, sy);
+    }
+    endShape(CLOSE);
+  }
+}
+
+//------Kaleidoscope effect------
+
+
+function kaleidoscopeEffect() {
+  if (!showKaleidoscope) return;
+
+  push();
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.arc(viewerX, viewerY, 200, 0, TWO_PI);
+  drawingContext.clip();
+
+  translate(viewerX, viewerY);
+
+  // ---- Use the global 'slices' coming from the slider ----
+  var scaleFactor = (200 / 150) * zoomFactor;
+
+  // Draw shapes in order, across all slices
+  for (var i = 0; i < duplicates.length; i++) {
+    var d = duplicates[i];
+    var drawX = d[1] - trayX;
+    var drawY = d[2] - trayY;
+
+    for (var s = 0; s < slices; s++) {     // <--- now uses global 'slices'
+      push();
+      rotate((TWO_PI / slices) * s);       // <--- uses global 'slices'
+      if (s % 2 === 1) scale(-1, 1);       // mirror slice
+      scale(scaleFactor);
+
+      fill(d[3]);
+      noStroke();
+
+      if (d[0] === "circle") circle(drawX, drawY, d[4]);
+      else if (d[0] === "square") square(drawX, drawY, d[4]);
+      else if (d[0] === "ellipse") ellipse(drawX, drawY, d[4], d[4] * 0.6);
+      else if (d[0] === "hexagon") {
+        beginShape();
+        for (var a = 0; a < TWO_PI; a += TWO_PI / 6) {
+          vertex(drawX + cos(a) * d[4] / 2, drawY + sin(a) * d[4] / 2);
+        }
+        endShape(CLOSE);
+      }
+      else if (d[0] === "octagon") {
+        beginShape();
+        for (var a = 0; a < TWO_PI; a += TWO_PI / 8) {
+          vertex(drawX + cos(a) * d[4] / 2, drawY + sin(a) * d[4] / 2);
+        }
+        endShape(CLOSE);
+      }
+      else if (d[0] === "star") {
+        var inner = d[4] / 4;
+        var outer = d[4] / 2;
+        beginShape();
+        for (var a = 0; a < TWO_PI; a += PI / 5) {
+          var r = (a % (PI / 2.5) === 0) ? outer : inner;
+          vertex(drawX + cos(a) * r, drawY + sin(a) * r);
+        }
+        endShape(CLOSE);
+      }
+
+      pop();
+    }
+  }
+
+  drawingContext.restore();
+  pop();
+}
+
+// ------Drag and drop logic------
+function mousePressed() {
+  //--Check shapes--
+  // Circle
+  for (var i = 0; i < circles.length; i++) {
+    if (dist(mouseX, mouseY, circles[i][0], circles[i][1]) < circles[i][2] / 2) {
+      draggedShape = ["circle", mouseX, mouseY, color(3, 162, 255), circles[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+  // Square
+  for (var i = 0; i < squares.length; i++) {
+    if (
+      mouseX > squares[i][0] &&
+      mouseX < squares[i][0] + squares[i][2] &&
+      mouseY > squares[i][1] &&
+      mouseY < squares[i][1] + squares[i][2]
+    ) {
+      draggedShape = ["square", mouseX, mouseY, color(255, 62, 28), squares[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+  // Ellipse
+  for (var i = 0; i < ellipses.length; i++) {
+    if (dist(mouseX, mouseY, ellipses[i][0], ellipses[i][1]) < ellipses[i][2] / 2) {
+      draggedShape = ["ellipse", mouseX, mouseY, color(252, 186, 3), ellipses[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+  // Hexagon
+  for (var i = 0; i < hexagons.length; i++) {
+    if (dist(mouseX, mouseY, hexagons[i][0], hexagons[i][1]) < hexagons[i][2] / 2) {
+      draggedShape = ["hexagon", mouseX, mouseY, color(0, 200, 0), hexagons[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+  // Octagon
+  for (var i = 0; i < octagons.length; i++) {
+    if (dist(mouseX, mouseY, octagons[i][0], octagons[i][1]) < octagons[i][2] / 2) {
+      draggedShape = ["octagon", mouseX, mouseY, color(150, 0, 200), octagons[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+  // Star
+  for (var i = 0; i < stars.length; i++) {
+    if (dist(mouseX, mouseY, stars[i][0], stars[i][1]) < stars[i][2] / 2) {
+      draggedShape = ["star", mouseX, mouseY, color(255, 140, 0), stars[i][2]];
+      duplicates.push(draggedShape);
+      return;
+    }
+  }
+
+  //--For Reset button--
+  if (mouseX > width - 130 && mouseX < width - 30 && mouseY > 20 && mouseY < 60) {
+    duplicates = []; // Clear all duplicates
+    draggedShape = null;
+    showKaleidoscope = false; // exit kaleidoscope mode
+    return;
+  }
+
+  //--For View button--
+  let btnX = trayX;
+  let btnY = trayY + 180; // adjusted to fit canvas
+  let btnW = 300;
+  let btnH = 50;
+
+  if (
+    mouseX > btnX - btnW / 2 &&
+    mouseX < btnX + btnW / 2 &&
+    mouseY > btnY - btnH / 2 &&
+    mouseY < btnY + btnH / 2
+  ) {
+    showKaleidoscope = true; // activate kaleidoscope mode
+    return;
+  }
+}
+
+function mouseDragged() {
+  if (draggedShape != null) {
+    draggedShape[1] = mouseX;
+    draggedShape[2] = mouseY;
+  }
+}
+
+function mouseReleased() {
+  if (draggedShape != null) {
+    var distance = dist(draggedShape[1], draggedShape[2], trayX, trayY);
+    if (distance > 150) {
+      duplicates.pop(); // Remove if outside tray circle
+    }
+    draggedShape = null;
+  }
+}
+
+//------Reset button------
+function drawResetButton() {
+  let isHover = mouseX > width - 130 && mouseX < width - 30 && mouseY > 20 && mouseY < 60;
+
+  if (isHover) {
+    fill(230, 180, 255);
+  } else {
+    fill(211, 122, 255);
+  }
+
+  stroke(0);
+  rectMode(CENTER);
+  rect(width - 80, 40, 100, 40);
+
+  fill(0);
+  textAlign(CENTER, CENTER);
+  textSize(20);
+  textStyle(NORMAL);
+  text("Reset", width - 80, 40);
+}
+
+//------View Kaleidoscope button------
+function drawViewButton() {
+  let btnX = trayX;
+  let btnY = trayY + 180;
+  let btnW = 300;
+  let btnH = 50;
+
+  let isHover =
+    mouseX > btnX - btnW / 2 &&
+    mouseX < btnX + btnW / 2 &&
+    mouseY > btnY - btnH / 2 &&
+    mouseY < btnY + btnH / 2;
+
+  if (isHover) {
+    fill(187, 247, 161);
+  } else {
+    fill(152, 247, 111);
+  }
+
+  stroke(0);
+  rectMode(CENTER);
+  rect(btnX, btnY, btnW, btnH);
+
+  noStroke();
+  fill(0);
+  textAlign(CENTER, CENTER);
+  textSize(18);
+  textStyle(NORMAL);
+  textFont("Helvetica");
+  text("View Kaleidoscope", btnX, btnY);
+}
+
+
+// ------Slices UI (label + value)------
+
+function drawSlicesUI() {
+  push();
+  noStroke();
+  fill(0);
+  textAlign(LEFT, BASELINE);
+  textSize(16);
+  textStyle(BOLD);
+  text("Slices", 14, 14);
+  textStyle(NORMAL);
+  text(+ slices, 150, 14);
+  pop();
+}
+
+
+// ------Zoom UI (label + value)------
+function drawZoomUI() {
+  push();
+  noStroke();
+  fill(0);
+  textAlign(LEFT, BASELINE);
+  textSize(16);
+  textStyle(BOLD);
+
+  // Place label near the zoom slider
+  text("Zoom", 14, 55);
+  textAlign(RIGHT, BASELINE);
+  textStyle(NORMAL);
+  text(zoomPercent + "%", 175, 55);
+  pop();
+}
+
